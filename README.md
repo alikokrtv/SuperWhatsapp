@@ -8,12 +8,12 @@
 ## 🤔 Derdimiz Ne, Amacımız Ne?
 Bugün özellikle beyaz yakalılar ve profesyoneller, mesaisinin büyük bir bölümünü bilgisayar başında, WhatsApp Web açık şekilde geçiriyor. İletişim bu kadar yoğunlaşmışken, resmi uygulamanın sunduğu standart özellikler yetersiz kalıyor. 
 
-Bizim amacımız; **"Nasıl daha üretken, daha gizli ve daha rahat iletişim kurarız?"** sorusuna cevap vermek. Süper WhatsApp, masaüstünde saatlerini harcayan kullanıcıları mutlu etmek, onlara adeta "süper güçler" vermek için tasarlandı!
+Bizim amacımız; **"Nasıl daha üretken, daha gizli ve daha rahat iletişim kurarız?"** sorusuna cevap vermek. Süper WhatsApp bir "SaaS" veya bulut girişimi değildir. Bilgisayarında saatlerini geçiren "Power-User" (Gelişmiş Kullanıcılar) için geliştirilmiş, yerel (local) çalışan açık kaynaklı bir **kişisel asistan** ve **araç kutusudur (toolbox).**
 
 ## ⚡ Süper Güçler (Özellikler)
 
 * 🌍 **Anlık ve Kesintisiz Çeviri:** Yabancı müşterilerle veya iş arkadaşlarınızla konuşurken dili dert etmeyin! Siz Türkçe yazın, o saniyesinde İngilizce'ye çevirip göndersin. Gelen İngilizce mesajları da tek tıkla Türkçe'ye çevirin.
-* 💣 **Kaybolan (Bomba) Mesajlar:** Şifre, IBAN veya özel bir bilgi mi gönderiyorsunuz? Mesajı yollayın, her iki taraftan da tam **10 saniye sonra** iz bırakmadan patlayıp silinsin.
+* ⏳ **Süreli Mesaj (10s):** Şifre, IBAN veya özel bir bilgi mi gönderiyorsunuz? Mesajı yollayın, sistem 10 saniye sonra her iki taraftan da silmeyi denesin. *(Bkz: Uyarılar)*
 * ⏱️ **İleri Tarihli (Zamanlanmış) Mesajlar:** Mesajınızı geceden yazın, "Yarın sabah 09:00'da gönder" deyin. Siz uyurken o tam vaktinde mesajı iletsin.
 * 🤖 **Gelişmiş Oto-Yanıt Asistanı:** Bilgisayar başında değil misiniz? Oto-yanıtı açın. Sadece *belirli kişilere (Beyaz Liste)* veya *patron hariç herkese (Kara Liste)* kendi belirlediğiniz özel bir mesajla otomatik dönüş yapın.
 
@@ -25,17 +25,35 @@ WhatsApp klonu kullanırken "Acaba mesajlarım başka yere gidiyor mu?" korkusu 
 
 1. **Açık Kaynak:** Bu proje %100 açık kaynaktır (Open Source). Kodların içinde ne olduğu tamamen şeffaftır.
 2. **Her Şey Sizin Bilgisayarınızda:** Uygulama, arka planda tarayıcınızı (Puppeteer ve whatsapp-web.js) kullanarak WhatsApp Web'i **sizin kendi bilgisayarınızda** çalıştırır.
-3. **Veri Hırsızlığı Yok:** Mesajlarınız, kişileriniz veya verileriniz **hiçbir şekilde** üçüncü parti bir veritabanına, sunucuya veya buluta kaydedilmez. Her şey *localhost* (kendi cihazınız) üzerinde yaşanır ve ölür.
-4. *(Not: Yalnızca çeviri özelliği kullanıldığında, çevrilecek metin anlık olarak ücretsiz Google Translate API'sine iletilip sonucu geri alınır, kaydedilmez.)*
+3. **Veri Toplamıyoruz:** Uygulama, varsayılan olarak kişisel mesajlarınızı veya numaralarınızı uzak bir sunucuya (bizim sunucularımıza) göndermez. Kendi cihazınızın sınırları içinde çalışır.
+4. *(Not: Yalnızca çeviri özelliği kullanıldığında, çevrilecek metin anlık olarak Google Translate API'sine iletilip sonucu geri alınır. İleride tamamen çevrimdışı/lokal AI modelleri kullanılarak bu durumun da önüne geçilmesi planlanmaktadır.)*
 
 ---
 
-## 🔮 Gelecek Vizyonu (Neler Ekleyeceğiz?)
+## ⚠️ Sorumluluk Reddi ve Sınırlar (Önemli)
+Bu proje, WhatsApp'ın resmi bir ürünü değildir ve standart WhatsApp Web (`whatsapp-web.js` ve `Puppeteer`) özelliklerinin üzerine inşa edilmiş bir otomasyondur.
+1. **Süreli Mesaj Sınırları:** "Süreli Mesaj" özelliği, WhatsApp'ın "Herkesten Sil" komutunu otomatik olarak tetikler. Karşı tarafın interneti yoksa, ekran görüntüsü alırsa veya eski bir sürüm kullanıyorsa mesajın silinmesi teknik olarak **garanti edilemez.** (Signal veya Telegram Gizli Sohbet gibi çalışmaz).
+2. **Çeviri Gizliliği:** Çeviri yaptığınızda metinleriniz dışarıya (Google API) çıkar. Kurumsal sırlar veya çok kritik veriler için çeviri modunu kullanırken dikkatli olun.
+3. **Kişisel Araçtır:** Bu kod ticari bir hizmet (SaaS) olarak kullanılmak için değil, kişisel bilgisayarınızda kendi işlerinizi kolaylaştırmak için tasarlanmıştır. Aşırı spam veya otomasyon kullanımı WhatsApp tarafından "anormal davranış" olarak algılanıp hesabınızın kısıtlanmasına neden olabilir. Sorumluluk kullanıcıya aittir.
+4. **WhatsApp Web Bağımlılığı (Kritik):** Bu proje, doğrudan WhatsApp Web'in mevcut davranışlarına (DOM ve WebSocket yapılarına) dayanır. WhatsApp (Meta) tarafında yapılacak bir güncelleme, ürünün özelliklerinin geçici veya kalıcı olarak bozulmasına neden olabilir.
 
-Süper WhatsApp'ın yol haritası heyecan verici! Gelecekte eklemeyi planladığımız uçuk özellikler:
-* 🎙️ **Sesli Mesaj Çevirisi:** Gelen yabancı dildeki ses kayıtlarını anında dinleyip metin olarak kendi dilinize çevirme.
-* 📹 **Anlık Görüntülü Konuşma Çeviricisi:** Görüntülü toplantılarda alt yazı şeklinde anlık (real-time) çeviri desteği.
-* 🧠 **Yapay Zeka Destekli Özetler:** Uzun iş mesajlaşmalarını tek tıkla "Burada ne konuşulmuş?" diyerek özetleme.
+---
+
+## 🔮 Yol Haritası (Roadmap)
+
+Süper WhatsApp için geliştirmeyi düşündüğümüz özellikler:
+
+**Yakın Vadede:**
+* Zamanlanmış mesaj yönetim ekranı
+* Gelişmiş oto-cevap şablonları
+* Toplu çeviri arayüzü
+
+**Orta Vadede:**
+* Uzun iş mesajlaşmalarını tek tıkla özetleme (Lokal AI ile)
+
+**Araştırma Aşaması (Ar-Ge):**
+* Sesli mesajların metne dökülmesi ve çevrilmesi
+* Görüntülü konuşmalarda anlık (real-time) çeviri desteği
 
 ---
 

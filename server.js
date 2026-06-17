@@ -5,6 +5,14 @@ const qrcode = require('qrcode');
 const http = require('http');
 const translate = require('google-translate-api-x');
 const schedule = require('node-schedule');
+const fs = require('fs');
+const path = require('path');
+const queueManager = require('./queueManager');
+const logger = require('./logger');
+const wa = require('./execution-layer/whatsappSelectors');
+
+const CACHE_FILE = path.join(__dirname, 'cache.json');
+let consecutiveErrors = 0; // Panic Switch için hata sayacı
 
 const app = express();
 const server = http.createServer(app);
@@ -31,6 +39,49 @@ let autoReplyConfig = {
     targetList: []
 };
 
+// --- Anti-Spam Koruması (Memory + Cache) ---
+let recentAutoReplies = new Map();
+if (fs.existsSync(CACHE_FILE)) {
+    try {
+        const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+        recentAutoReplies = new Map(Object.entries(data));
+    } catch(e) { console.error("Cache okuma hatası", e); }
+}
+
+function saveCache() {
+    try {
+        const obj = Object.fromEntries(recentAutoReplies);
+        fs.writeFileSync(CACHE_FILE, JSON.stringify(obj));
+    } catch(e) {}
+}
+
+// Global limit: 1 dakikada maks 5 oto-yanıt atılsın
+let globalAutoReplyCount = 0;
+setInterval(() => {
+    globalAutoReplyCount = 0;
+    saveCache(); // Dakikada bir cache'i kaydet
+}, 60000);
+
+function handlePanicSwitch(errDetails) {
+    consecutiveErrors++;
+    logger.error("Hata tespit edildi, ardışık hata sayısı: " + consecutiveErrors, errDetails);
+    
+    if (consecutiveErrors >= 10 && autoReplyConfig.enabled) {
+        autoReplyConfig.enabled = false;
+        logger.warn("PANİK ANAHTARI (PANIC SWITCH) TETİKLENDİ: Oto-yanıt otomatik kapatıldı.");
+        io.emit('log', '🚨 SİSTEM PANİK MODUNDA: Çok fazla hata alındığı için güvenliğiniz adına Oto-yanıt kapatıldı!');
+        io.emit('autoReplyStatus', autoReplyConfig);
+    }
+}
+
+function resetPanicSwitch() {
+    if (consecutiveErrors > 0) {
+        consecutiveErrors = 0;
+        logger.info("İşlem başarılı, panik sayacı sıfırlandı.");
+    }
+}
+
+
 client.on('qr', (qr) => {
     qrcode.toDataURL(qr, (err, url) => {
         io.emit('qr', url);
@@ -40,29 +91,10 @@ client.on('qr', (qr) => {
 
 async function refreshChats() {
     try {
-        const chats = await client.getChats();
-        cachedChats = [];
-        for (let chat of chats) {
-            let lm = null;
-            if (chat.lastMessage) {
-                lm = {
-                    body: chat.lastMessage.body || '',
-                    hasMedia: chat.lastMessage.hasMedia,
-                    fromMe: chat.lastMessage.fromMe
-                };
-            }
-            cachedChats.push({
-                id: chat.id._serialized,
-                name: chat.name || chat.id.user,
-                timestamp: chat.timestamp,
-                unreadCount: chat.unreadCount,
-                isArchived: chat.archived, // Fix applied
-                lastMessage: lm
-            });
-        }
+        cachedChats = await wa.fetchAllChats(client);
         io.emit('chats', cachedChats);
     } catch (err) {
-        console.error("Sohbetler çekilemedi: ", err);
+        logger.error("Sohbetler çekilemedi:", err);
     }
 }
 
@@ -74,44 +106,27 @@ client.on('ready', async () => {
 });
 
 client.on('loading_screen', (percent, message) => {
+    logger.info(`WhatsApp Yükleniyor: %${percent} - ${message}`);
     io.emit('log', `WhatsApp Yükleniyor: %${percent} - ${message}`);
 });
 
-client.on('authenticated', () => io.emit('authenticated', 'Doğrulandı.'));
-client.on('auth_failure', msg => io.emit('log', 'Doğrulama hatası: ' + msg));
+client.on('authenticated', () => {
+    logger.info("Kimlik doğrulandı.");
+    io.emit('authenticated', 'Doğrulandı.');
+});
+client.on('auth_failure', msg => {
+    logger.error('Doğrulama hatası:', msg);
+    io.emit('log', 'Doğrulama hatası: ' + msg);
+});
 client.on('disconnected', (reason) => {
+    logger.error('Bağlantı koptu:', reason);
     io.emit('log', 'Bağlantı koptu: ' + reason);
     isReady = false;
+    handlePanicSwitch('WhatsApp Disconnected');
 });
 
 async function formatMessage(msg) {
-    const contact = await msg.getContact();
-    let mediaData = null;
-    
-    if (msg.hasMedia) {
-        try {
-            const media = await msg.downloadMedia();
-            if (media) {
-                mediaData = {
-                    mimetype: media.mimetype,
-                    data: `data:${media.mimetype};base64,${media.data}`,
-                    filename: media.filename
-                };
-            }
-        } catch (e) {
-            console.error("Medya indirilemedi", e);
-        }
-    }
-
-    return {
-        id: msg.id._serialized,
-        chatId: msg.fromMe ? msg.to : msg.from,
-        from: msg.fromMe ? 'Sen' : (contact.name || contact.number),
-        body: msg.body,
-        media: mediaData,
-        timestamp: new Date(msg.timestamp * 1000).toLocaleTimeString(),
-        isMe: msg.fromMe
-    };
+    return await wa.formatMessage(msg);
 }
 
 client.on('message', async msg => {
@@ -143,8 +158,31 @@ client.on('message', async msg => {
             }
             
             if (shouldReply) {
-                const replyText = autoReplyConfig.message || "🤖 *[Süper WhatsApp Oto-Yanıt]*\nŞu anda bilgisayar başında değilim, daha sonra dönüş yapacağım.";
-                client.sendMessage(msg.from, replyText);
+                // Anti-Spam Koruması: Aynı kişiye 60 saniyede bir defadan fazla oto-yanıt atma
+                // Ve Global limit (dakikada 5) aşılmamalı
+                const now = Date.now();
+                const lastReplyTime = recentAutoReplies.get(msg.from) || 0;
+                
+                if (now - lastReplyTime > 60000 && globalAutoReplyCount < 5) {
+                    recentAutoReplies.set(msg.from, now);
+                    globalAutoReplyCount++;
+
+                    const replyText = autoReplyConfig.message || "🤖 *[Süper WhatsApp Oto-Yanıt]*\nŞu anda bilgisayar başında değilim, daha sonra dönüş yapacağım.";
+                    
+                    // İnsan benzeri rastgele gecikme (1.5 - 3.5 saniye arası)
+                    const randomDelay = Math.floor(Math.random() * 2000) + 1500;
+                    setTimeout(() => {
+                        client.sendMessage(msg.from, replyText).then(() => {
+                            logger.info(`Oto-yanıt gönderildi: ${msg.from}`);
+                            resetPanicSwitch();
+                        }).catch(e => {
+                            handlePanicSwitch(e);
+                        });
+                    }, randomDelay);
+                } else {
+                    logger.warn(`Oto-yanıt atlandı. (Spam Koruması). Kimden: ${msg.from}`);
+                    io.emit('log', '⚠️ Oto-Yanıt Atlandı: Spam koruması veya saatlik limit devrede.');
+                }
             }
         }
     }
@@ -162,14 +200,20 @@ client.on('message_revoke_everyone', async (after, before) => {
     }
 });
 
-console.log('WhatsApp istemcisi başlatılıyor...');
-client.initialize().catch(err => console.error('İstemci başlatılırken hata:', err));
+logger.info('WhatsApp istemcisi başlatılıyor...');
+client.initialize().catch(err => {
+    logger.error('İstemci başlatılırken hata:', err);
+});
 
 io.on('connection', (socket) => {
     if (isReady) {
         socket.emit('ready', 'Zaten bağlı.');
         if(cachedChats.length > 0) socket.emit('chats', cachedChats);
     }
+    
+    // Queue Manager'i başlat
+    queueManager.startQueue(client, io);
+    
     socket.emit('autoReplyStatus', autoReplyConfig);
 
     socket.on('setAutoReply', (config) => {
@@ -225,57 +269,23 @@ io.on('connection', (socket) => {
 
             // Eğer Zaman Ayarlıysa
             if (scheduledTime) {
-                const date = new Date(scheduledTime);
-                schedule.scheduleJob(date, async function() {
-                    try {
-                        let msgObj;
-                        if (media) {
-                            const base64Data = media.data.split(',')[1]; 
-                            const mediaContent = new MessageMedia(media.mimetype, base64Data, media.filename);
-                            msgObj = await client.sendMessage(chatId, finalMessage, { media: mediaContent });
-                        } else {
-                            msgObj = await client.sendMessage(chatId, finalMessage);
-                        }
-                        
-                        if (selfDestruct) {
-                            setTimeout(() => {
-                                msgObj.delete(true).catch(e=>console.log(e));
-                            }, 10000);
-                        }
-                        
-                        const formatted = await formatMessage(msgObj);
-                        io.emit('message', formatted);
-                        
-                        io.emit('log', '⏰ Zamanlanmış mesaj gönderildi!');
-                        refreshChats();
-                    } catch(err) {
-                        console.error('Zamanlanmış gönderim hatası:', err);
-                    }
-                });
-                socket.emit('log', '⏰ Mesaj zamanlandı: ' + date.toLocaleString());
+                queueManager.addJob(chatId, finalMessage, scheduledTime, media);
+                socket.emit('log', `⏰ Mesaj kuyruğa eklendi: ${new Date(scheduledTime).toLocaleString()}`);
                 return; // Normal gönderimi durdur
             }
 
             // Normal Gönderim
-            let msgObj;
-            if (media) {
-                const base64Data = media.data.split(',')[1]; 
-                const mediaContent = new MessageMedia(media.mimetype, base64Data, media.filename);
-                msgObj = await client.sendMessage(chatId, finalMessage, { media: mediaContent });
-            } else {
-                msgObj = await client.sendMessage(chatId, finalMessage);
-            }
+            let msgObj = await wa.sendMessage(client, chatId, finalMessage, media);
             
             // Kendini İmha Etme (Self-Destruct)
             if (selfDestruct) {
-                setTimeout(() => {
-                    msgObj.delete(true).catch(e=>console.log(e));
-                }, 10000);
+                wa.scheduleDelete(msgObj, 10000);
             }
 
-            const formatted = await formatMessage(msgObj);
+            const formatted = await wa.formatMessage(msgObj);
             io.emit('message', formatted);
             refreshChats();
+            resetPanicSwitch();
         } catch (err) {
             socket.emit('log', 'Gönderim hatası: ' + err.message);
         }
