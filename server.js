@@ -12,6 +12,7 @@ const logger = require('./logger');
 const wa = require('./execution-layer/whatsappSelectors');
 
 const CACHE_FILE = path.join(__dirname, 'cache.json');
+const CONFIG_FILE = path.join(__dirname, 'config.json');
 let consecutiveErrors = 0; // Panic Switch için hata sayacı
 
 const app = express();
@@ -21,10 +22,19 @@ const io = socketIO(server, { maxHttpBufferSize: 1e8 });
 app.use(express.static('public'));
 app.use(express.json());
 
+// Cross-platform Chrome yolu: Ortam değişkeni varsa onu kullan, yoksa platform'a göre otomatik bul
+function getChromePath() {
+    if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+    if (process.platform === 'win32') return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+    if (process.platform === 'darwin') return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    // Linux — chromium veya google-chrome
+    return process.env.CHROMIUM_PATH || 'google-chrome';
+}
+
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
-        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        executablePath: getChromePath(),
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
@@ -33,12 +43,27 @@ const client = new Client({
 let isReady = false;
 let queueStarted = false; // Queue Manager tek seferlik başlatma koruğu
 let cachedChats = [];
-let autoReplyConfig = {
+const DEFAULT_AUTO_REPLY = {
     enabled: false,
     message: "🤖 *[Süper WhatsApp Oto-Yanıt]*\nŞu anda bilgisayar başında değilim, daha sonra dönüş yapacağım.",
     mode: 'all',
     targetList: []
 };
+
+// autoReplyConfig'i diskten yükle (restart kaliciligi)
+let autoReplyConfig = DEFAULT_AUTO_REPLY;
+if (fs.existsSync(CONFIG_FILE)) {
+    try {
+        autoReplyConfig = { ...DEFAULT_AUTO_REPLY, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) };
+        logger.info('Oto-yanıt ayarları diskten yüklendi.');
+    } catch(e) { logger.error('Config okuma hatası:', e); }
+}
+
+function saveConfig() {
+    try {
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(autoReplyConfig, null, 2));
+    } catch(e) { logger.error('Config kaydedilemedi:', e); }
+}
 
 // --- Anti-Spam Koruması (Memory + Cache) ---
 let recentAutoReplies = new Map();
@@ -46,7 +71,7 @@ if (fs.existsSync(CACHE_FILE)) {
     try {
         const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
         recentAutoReplies = new Map(Object.entries(data));
-    } catch(e) { console.error("Cache okuma hatası", e); }
+    } catch(e) { logger.error("Cache okuma hatası", e); }
 }
 
 function saveCache() {
@@ -222,6 +247,7 @@ io.on('connection', (socket) => {
 
     socket.on('setAutoReply', (config) => {
         autoReplyConfig = config;
+        saveConfig(); // Restart'a karşı diske kaydet
         io.emit('autoReplyStatus', autoReplyConfig);
     });
 
@@ -246,11 +272,11 @@ io.on('connection', (socket) => {
         }
     });
 
-    // GİDİCİ MESAJI ÇEVİR (Önizleme İçin)
+    // GİDİCİ MESAJI ÇEVİR (Önizleme İçin) - nonce ile race condition önlendi
     socket.on('translateInput', async (data) => {
         try {
             const res = await translate(data.text, { to: data.lang });
-            socket.emit('translatedInput', res.text);
+            socket.emit('translatedInput', { text: res.text, nonce: data.nonce });
         } catch(e) {
             socket.emit('log', 'Çeviri hatası: ' + e.message);
         }

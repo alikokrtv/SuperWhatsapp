@@ -313,7 +313,9 @@ function triggerTranslation() {
         return;
     }
     if (translateInputBtn) translateInputBtn.innerText = '⏳';
-    socket.emit('translateInput', { text, lang });
+    const nonce = Date.now() + '_' + Math.random(); // race condition koruması
+    targetMessage._lastTranslationNonce = nonce;
+    socket.emit('translateInput', { text, lang, nonce });
 }
 
 if (translateInputBtn) {
@@ -334,10 +336,12 @@ translateSelect.addEventListener('change', () => {
     triggerTranslation();
 });
 
-socket.on('translatedInput', (text) => {
+socket.on('translatedInput', (data) => {
+    // Nonce kontrolu: sadece en son istek gecerliyse goster (race condition onleme)
+    if (data.nonce !== targetMessage._lastTranslationNonce) return;
     if (translationPreviewBox) {
         translationPreviewBox.style.display = 'flex';
-        previewText.innerText = text;
+        previewText.innerText = data.text;
     }
     if (translateInputBtn) translateInputBtn.innerText = '🔄 Çevir';
 });
@@ -519,7 +523,17 @@ function appendMessage(data, autoScroll = true) {
         } else if (data.media.mimetype.startsWith('audio/')) {
             mediaHtml = `<div class="media-container" style="background:transparent;"><audio src="${data.media.data}" controls style="width:250px;"></audio></div>`;
         } else {
-            mediaHtml = `<div class="media-container" style="padding:10px; background:#1e293b;"><a href="${data.media.data}" download="${data.media.filename || 'dosya'}" style="color:var(--primary); text-decoration:none;">📎 İndir: ${data.media.filename || 'Dosya'}</a></div>`;
+            // XSS fix: filename DOM'a text olarak set edilecek, innerHTML degil
+            const mediaDiv = document.createElement('div');
+            mediaDiv.className = 'media-container';
+            mediaDiv.style.cssText = 'padding:10px; background:#1e293b;';
+            const link = document.createElement('a');
+            link.href = data.media.data;
+            link.download = data.media.filename || 'dosya';
+            link.style.cssText = 'color:var(--primary); text-decoration:none;';
+            link.textContent = '📎 İndir: ' + (data.media.filename || 'Dosya');
+            mediaDiv.appendChild(link);
+            mediaHtml = mediaDiv.outerHTML;
         }
     }
 
