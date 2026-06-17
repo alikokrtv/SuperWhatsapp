@@ -72,7 +72,13 @@ async function fetchAllChats(client) {
  * @returns {Promise<object>}
  */
 async function formatMessage(msg) {
-    const contact = await msg.getContact();
+    let contact = null;
+    try {
+        contact = await msg.getContact();
+    } catch (err) {
+        // Known whatsapp-web.js issue with some IDs (e.g. @lid)
+    }
+
     let mediaData = null;
 
     if (msg.hasMedia) {
@@ -90,10 +96,17 @@ async function formatMessage(msg) {
         }
     }
 
+    let fromName = msg.from;
+    if (msg.fromMe) {
+        fromName = 'Sen';
+    } else if (contact) {
+        fromName = contact.name || contact.pushname || contact.number || msg.from;
+    }
+
     return {
         id: msg.id._serialized,
         chatId: msg.fromMe ? msg.to : msg.from,
-        from: msg.fromMe ? 'Sen' : (contact.name || contact.number),
+        from: fromName,
         body: msg.body,
         media: mediaData,
         timestamp: new Date(msg.timestamp * 1000).toLocaleTimeString(),

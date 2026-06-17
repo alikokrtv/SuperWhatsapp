@@ -278,6 +278,7 @@ io.on('connection', (socket) => {
             const formattedMessages = await Promise.all(messages.map(m => formatMessage(m)));
             socket.emit('chatHistory', { chatId, messages: formattedMessages });
         } catch (err) {
+            logger.error(`getMessages hatası (${chatId}):`, err);
             socket.emit('log', 'Mesajlar çekilirken hata: ' + err.message);
         }
     });
