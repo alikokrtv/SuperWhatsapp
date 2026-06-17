@@ -36,6 +36,7 @@ let allChats = [];
 let currentFilter = 'all';
 let selectedMedia = null;
 let typingTimeout = null;
+let lastTranslationNonce = null; // Race condition koruması için modül seviyesi nonce
 
 socket.on('log', (msg) => { statusLog.innerText = msg; });
 
@@ -313,8 +314,8 @@ function triggerTranslation() {
         return;
     }
     if (translateInputBtn) translateInputBtn.innerText = '⏳';
-    const nonce = Date.now() + '_' + Math.random(); // race condition koruması
-    targetMessage._lastTranslationNonce = nonce;
+    const nonce = Date.now() + '_' + Math.random();
+    lastTranslationNonce = nonce; // modül seviyesi değişken
     socket.emit('translateInput', { text, lang, nonce });
 }
 
@@ -337,8 +338,8 @@ translateSelect.addEventListener('change', () => {
 });
 
 socket.on('translatedInput', (data) => {
-    // Nonce kontrolu: sadece en son istek gecerliyse goster (race condition onleme)
-    if (data.nonce !== targetMessage._lastTranslationNonce) return;
+    // Nonce kontrolü: sadece en son isteğe ait yanıt işlenir
+    if (data.nonce !== lastTranslationNonce) return;
     if (translationPreviewBox) {
         translationPreviewBox.style.display = 'flex';
         previewText.innerText = data.text;

@@ -24,11 +24,31 @@ app.use(express.json());
 
 // Cross-platform Chrome yolu: Ortam değişkeni varsa onu kullan, yoksa platform'a göre otomatik bul
 function getChromePath() {
-    if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
-    if (process.platform === 'win32') return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-    if (process.platform === 'darwin') return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-    // Linux — chromium veya google-chrome
-    return process.env.CHROMIUM_PATH || 'google-chrome';
+    if (process.env.CHROME_PATH) {
+        if (!fs.existsSync(process.env.CHROME_PATH)) {
+            throw new Error(`CHROME_PATH ortam değişkeni geçersiz: "${process.env.CHROME_PATH}" bulunamadı.`);
+        }
+        return process.env.CHROME_PATH;
+    }
+    
+    let candidate;
+    if (process.platform === 'win32') {
+        candidate = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+    } else if (process.platform === 'darwin') {
+        candidate = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    } else {
+        // Linux: google-chrome veya chromium (PATH'de aranacak, fs.existsSync gerekmez)
+        return process.env.CHROMIUM_PATH || 'google-chrome';
+    }
+    
+    if (!fs.existsSync(candidate)) {
+        throw new Error(
+            `Chrome bulunamadı: "${candidate}"\n` +
+            `Farklı bir kurulum yoluysa CHROME_PATH ortam değişkenini ayarlayın.\n` +
+            `Örnek: CHROME_PATH="C:\\...\\chrome.exe" node server.js`
+        );
+    }
+    return candidate;
 }
 
 const client = new Client({
