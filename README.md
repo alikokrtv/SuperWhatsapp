@@ -1,9 +1,88 @@
 <h1 align="center">Süper WhatsApp 🚀</h1>
 <p align="center">
-  <em>"WhatsApp tam olarak böyle olmalı kardeşim!" dediğimiz o efsane sürüm.</em>
+  <em>"This is exactly how WhatsApp should work." — the legendary version we always wanted.</em>
+</p>
+<p align="center">
+  <a href="#english">🇬🇧 English</a> &nbsp;|&nbsp; <a href="#türkçe">🇹🇷 Türkçe</a>
 </p>
 
 ---
+
+<a name="english"></a>
+## 🇬🇧 English
+
+### What is this?
+
+SuperWhatsApp is a **locally-running automation layer** on top of WhatsApp Web. Not a SaaS. Not a cloud service. A self-hosted power-user toolbox that runs entirely on your own machine.
+
+It's built for people who spend most of their workday in front of a computer with WhatsApp Web open — and find the default features frustrating.
+
+### ⚡ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🌍 **Real-time Translation** | Write in your language, it auto-translates and sends. Incoming messages translated on click. |
+| 🤖 **Smart Auto-Reply** | Whitelist / Blacklist / All contacts / Unknown contacts modes. Human-like random delay built in. |
+| ⏰ **Scheduled Messages** | Schedule messages that **survive restarts** — powered by a persistent disk-based queue. |
+| 💣 **Self-Destructing Messages** | Auto-deletes from both sides after 10 seconds. *(Screenshot not protected — documented)* |
+
+### 🏗️ Architecture (Why this isn't just another WA bot)
+
+Most WhatsApp automation projects scatter DOM selectors everywhere. When WhatsApp updates, it's full surgery.
+
+This project uses an isolated **Execution Layer**:
+
+```
+execution-layer/whatsappSelectors.js  ← ALL WhatsApp I/O lives here
+server.js                             ← Business logic. Knows nothing about DOM.
+queueManager.js                       ← Persistent job queue (survives restarts)
+logger.js                             ← File-based logging (logs/system.log)
+```
+
+**When WhatsApp updates:** Only `whatsappSelectors.js` needs patching. `server.js` is untouched.
+
+### 🛡️ Resilience Features
+
+- **Panic Switch:** 10 consecutive errors → auto-disables auto-reply → UI alert
+- **Global Rate Limiter:** Max 5 auto-replies/minute (spam protection)
+- **Persistent Cache:** Auto-reply history survives restarts (no double-reply after crash)
+- **File Logging:** Every event timestamped to `logs/system.log`
+
+### ⚠️ Honest Disclaimer
+
+> This is a **managed automation tool**, not a stable product.
+
+- Built on `whatsapp-web.js` + Puppeteer (unofficial API)
+- WhatsApp DOM changes **will** break things occasionally — this is by design
+- Goal: **fast recovery**, not zero breakage
+- Not for SaaS. Not for scale. Perfect for personal power-user use.
+
+### 🚀 Quick Start
+
+**Requirements:** Node.js, Google Chrome
+
+```bash
+git clone https://github.com/alikokrtv/SuperWhatsapp.git
+cd SuperWhatsapp
+npm install
+node server.js
+# Open http://localhost:3000 and scan QR
+```
+
+**Windows users:** Just double-click `SüperWhatsApp_Baslat.bat`
+
+### 🔒 Privacy
+
+- ✅ Runs 100% locally — your messages stay on your machine
+- ✅ Open source — audit the code yourself
+- ⚠️ Translation feature sends text to Google Translate API
+- ✅ No analytics, no telemetry, no cloud storage
+
+---
+
+<a name="türkçe"></a>
+## 🇹🇷 Türkçe
+
 
 ## 🤔 Derdimiz Ne, Amacımız Ne?
 Bugün özellikle beyaz yakalılar ve profesyoneller, mesaisinin büyük bir bölümünü bilgisayar başında, WhatsApp Web açık şekilde geçiriyor. İletişim bu kadar yoğunlaşmışken, resmi uygulamanın sunduğu standart özellikler yetersiz kalıyor. 
