@@ -70,3 +70,58 @@ Teknik konularla aranız yok mu? Hiç dert etmeyin! Kodu çalışmasını sizin 
 
 **Mac/Linux Kullanıcıları:**
 Terminali açıp proje dizininde sırasıyla `npm install` ve `node server.js` yazmanız yeterlidir. Daha sonra tarayıcıdan `http://localhost:3000` adresine gidebilirsiniz.
+
+---
+
+## 🏛️ Mimari Felsefe (Bu Projenin Ruhu)
+
+> *Bu bölüm, bu sistemi yazan, kullanan veya katkıda bulunacak olan herkes için yazılmıştır. Kod satırlarından daha önemlidir.*
+
+### Bu Proje Ne Değildir?
+
+Bu proje "WhatsApp'ı geliştirme" girişimi **değildir.** Bu proje bir **mesajlaşma davranışlarını otomatikleştiren yerel automation VM'dir.**
+
+İkisi arasındaki fark her şeyi değiştirir:
+- WhatsApp değişirse, **VM'nin execution layer'ı güncellenir.** Ürün ölmez.
+- Sisteme yeni özellik eklemek için önce sorulacak soru şudur: *"Bu ekleme, selector izolasyonunu zayıflatır mı?"*
+
+### Kırılma Beklenen Bir Durumdur
+
+Bu sistem **"zero break" hedeflemez, "fast recovery" hedefler.**
+
+WhatsApp Web tabanlı projelerde:
+- Ayda 1 küçük kırılma → **normaldir**
+- 3–6 ayda 1 büyük kırılma → **normaldir**
+- DOM değişimi → **kaçınılmazdır**
+
+Kırıldığında yapılacak şey:
+1. `logs/system.log` dosyasını aç, son hatayı bul
+2. Hata `execution-layer/whatsappSelectors.js`'de mi? → Sadece onu düzelt
+3. `server.js`'e dokunma. Business logic değişmemiştir.
+
+### Mimari Sınırlar (Bozulursa Her Şey Bozulur)
+
+| Katman | Dosya | Sorumluluk |
+|--------|-------|------------|
+| Business Logic | `server.js` | Uygulama kuralları. DOM bilmez. |
+| Execution Layer | `execution-layer/whatsappSelectors.js` | WhatsApp'a özgü TÜM I/O. Tek değişen yer. |
+| Queue | `queueManager.js` | Zamanlanmış işler. Restart'a dayanıklı. |
+| Logger | `logger.js` | Disk bazlı loglama. Debug körlüğünü önler. |
+
+### En Büyük Risk: Kendi Genişleme İsteğin
+
+Bu sistem zamanla genellikle iki şekilde yaşar:
+1. Disiplin korunur → küçük ama sağlam araç olarak yıllarca kalır ✅
+2. "Bir şey daha ekleyelim" döngüsüyle şişer → en iyi mimari bile dağılır ❌
+
+**Feature Freeze Kuralı:** Sistem davranışında anomali varken yeni özellik eklenmez. Önce repair, sonra feature.
+
+### Başarı Kriteri
+
+Bu projenin başarısını ölçmek için tek soru:
+
+> *6 ay sonra sistem hâlâ tek modülde DOM bağımlılığıyla, temiz business logic ile, kırılmaları modellenmiş şekilde duruyor mu?*
+
+Evet ise: Başarı.
+
+---
