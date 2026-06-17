@@ -10,3 +10,8 @@ node_modules/
 
 # Ortam Değişkenleri
 .env
+
+# Runtime Dosyaları (Canlı veriler, repoya girmemeli)
+cache.json
+jobs.json
+logs/

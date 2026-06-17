@@ -31,6 +31,7 @@ const client = new Client({
 });
 
 let isReady = false;
+let queueStarted = false; // Queue Manager tek seferlik başlatma koruğu
 let cachedChats = [];
 let autoReplyConfig = {
     enabled: false,
@@ -103,6 +104,12 @@ client.on('ready', async () => {
     io.emit('ready', 'Bağlantı başarılı!');
     io.emit('log', 'Süper WhatsApp hazır. Sohbetler yükleniyor...');
     await refreshChats();
+    
+    // Queue Manager sadece bir kez başlatılsın
+    if (!queueStarted) {
+        queueStarted = true;
+        queueManager.startQueue(client, io);
+    }
 });
 
 client.on('loading_screen', (percent, message) => {
@@ -210,9 +217,6 @@ io.on('connection', (socket) => {
         socket.emit('ready', 'Zaten bağlı.');
         if(cachedChats.length > 0) socket.emit('chats', cachedChats);
     }
-    
-    // Queue Manager'i başlat
-    queueManager.startQueue(client, io);
     
     socket.emit('autoReplyStatus', autoReplyConfig);
 
