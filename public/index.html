@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Süper WhatsApp Web V3</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div id="toastContainer" class="toast-container"></div>
+    <div class="app-container">
+        
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Süper WhatsApp</h2>
+                <div class="controls" style="display:flex; align-items:center; gap: 8px;">
+                    <button id="openAutoReplyModalBtn" class="power-btn" style="padding: 5px 10px;" title="Oto-Yanıt Ayarları">⚙️ Oto-Yanıt Ayarları</button>
+                </div>
+            </div>
+            
+            <div id="status-log" class="status-box">Durum: Bekleniyor...</div>
+            
+            <div id="qrContainer" class="qr-container">
+                <div id="qrLoader" class="loader"></div>
+                <img id="qrcode" src="" alt="QR Kod">
+                <p>WhatsApp'ı bağlamak için QR kodu okutun</p>
+            </div>
+
+            <div class="chat-filters" id="chatFilters" style="display: none;">
+                <button class="filter-btn active" data-filter="all">Tümü</button>
+                <button class="filter-btn" data-filter="unread">Okunmamış</button>
+                <button class="filter-btn" data-filter="archived">Arşiv</button>
+            </div>
+            
+            <div id="chatsList" class="chats-list" style="display: none;">
+                <!-- Sohbetler buraya gelecek -->
+            </div>
+        </div>
+
+        <!-- MAIN CHAT AREA -->
+        <div class="main-chat">
+            <div class="chat-header">
+                <div class="chat-title">
+                    <h3 id="activeChatName">Sohbet Seçin</h3>
+                    <span id="statusDot" class="status-dot"></span>
+                </div>
+            </div>
+            
+            <div id="messagesList" class="messages-list">
+                <div class="welcome-message">
+                    <h3>Süper WhatsApp V3'e Hoş Geldiniz! 🚀</h3>
+                    <p>Soldan bir sohbet seçerek mesajlaşmaya, anında çeviri yapmaya veya saatli mesaj göndermeye başlayabilirsiniz.</p>
+                </div>
+            </div>
+            
+            <!-- MEDIA PREVIEW -->
+            <div id="mediaPreview" class="media-preview" style="display: none;">
+                <span id="mediaFileName">Dosya</span>
+                <button id="clearMediaBtn" class="clear-btn">❌ İptal</button>
+            </div>
+
+            <!-- CHAT INPUT AREA -->
+            <div id="chatInputArea" class="chat-input-area" style="display: none;">
+                
+                <!-- TRANSLATION PREVIEW BUBBLE -->
+                <div id="translationPreviewBox" style="display: none; padding: 8px 12px; margin-bottom: 8px; background: rgba(37,211,102,0.1); border: 1px solid var(--primary); border-radius: 8px; color: var(--primary); font-size: 0.9rem; align-items: center; justify-content: space-between;">
+                    <div><span style="opacity: 0.7;">Çeviri:</span> <strong id="previewText"></strong></div>
+                    <button id="usePreviewBtn" style="background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Bunu Yaz</button>
+                </div>
+                
+                <!-- SUPERPOWERS PANEL -->
+                <div class="superpowers-panel">
+                    <!-- Medya -->
+                    <div class="power-group">
+                        <button id="attachBtn" class="power-btn" title="Medya Ekle">📎 Dosya</button>
+                        <input type="file" id="mediaUpload" style="display: none;" accept="image/*,video/*,audio/*,.pdf,.doc,.docx">
+                    </div>
+
+                    <!-- Çeviri -->
+                    <div class="power-group">
+                        <span class="group-label">🌍 Çeviri:</span>
+                        <select id="translateSelect" class="super-select" title="Çeviri Dili">
+                            <option value="none">Çevirisiz</option>
+                            <option value="en">🇬🇧 İngilizce</option>
+                            <option value="de">🇩🇪 Almanca</option>
+                            <option value="es">🇪🇸 İspanyolca</option>
+                            <option value="ru">🇷🇺 Rusça</option>
+                            <option value="ar">🇸🇦 Arapça</option>
+                            <option value="fr">🇫🇷 Fransızca</option>
+                        </select>
+                        <button id="translateInputBtn" class="power-btn" title="Yazdığımı Çevir">🔄 Önizle</button>
+                    </div>
+
+                    <!-- Zaman ve Gizlilik -->
+                    <div class="power-group">
+                        <span class="group-label">⏱️ İleri Tarih:</span>
+                        
+                        <select id="quickSchedule" class="super-select" title="Hızlı Süre" style="padding: 5px 8px;">
+                            <option value="">Hızlı Seçim</option>
+                            <option value="5m">5 Dk Sonra</option>
+                            <option value="15m">15 Dk Sonra</option>
+                            <option value="1h">1 Saat Sonra</option>
+                            <option value="tomorrow">Yarın Sabah (09:00)</option>
+                            <option value="clear">Sıfırla ❌</option>
+                        </select>
+                        
+                        <input type="datetime-local" id="scheduleInput" class="super-input" title="Zaman Ayarlı Mesaj">
+                        
+                        <div class="v-divider" style="margin: 0 5px;"></div>
+                        
+                        <label class="icon-toggle" title="10 Saniye Sonra Sil">
+                            <input type="checkbox" id="selfDestructToggle">
+                            <span class="power-btn">💣 Kaybolan</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="input-wrapper">
+                    <input type="text" id="targetMessage" placeholder="Bir mesaj yazın veya çevrilecek metni girin..." autocomplete="off">
+                    <button id="sendBtn" class="send-btn">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OTO-YANIT MODAL -->
+    <div id="autoReplyModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content auto-reply-modal">
+            <div class="modal-header">
+                <h3>🤖 Oto-Yanıt Yöneticisi</h3>
+                <button id="closeAutoReplyModalBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-row">
+                    <span>Oto-Yanıt Sistemi:</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="modalAutoReplyToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="setting-row" style="flex-direction: column; align-items: flex-start;">
+                    <label for="modalAutoReplyMessage" style="margin-bottom: 5px;">Yanıt Mesajı:</label>
+                    <textarea id="modalAutoReplyMessage" rows="3" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-hover); color: var(--text-main); font-family: inherit; resize: vertical;">🤖 *[Süper WhatsApp Oto-Yanıt]*&#10;Şu anda bilgisayar başında değilim, daha sonra dönüş yapacağım.</textarea>
+                </div>
+
+                <div class="setting-row" style="flex-direction: column; align-items: flex-start;">
+                    <label style="margin-bottom: 5px;">Kime Yanıt Verilecek?</label>
+                    <select id="modalAutoReplyMode" class="super-select" style="width: 100%; padding: 8px;">
+                        <option value="all">Herkese</option>
+                        <option value="unknown">Sadece Rehberde Olmayanlara (Yabancılara)</option>
+                        <option value="whitelist">Sadece Şunlara (Beyaz Liste)</option>
+                        <option value="blacklist">Şunlar Hariç Herkese (Kara Liste)</option>
+                    </select>
+                </div>
+
+                <!-- KİŞİ SEÇİMİ (Yalnızca Whitelist/Blacklist seçiliyse görünür) -->
+                <div id="modalTargetSelection" class="setting-row" style="display: none; flex-direction: column; align-items: flex-start; gap: 8px;">
+                    <label>Kişi Seç (İsim veya numara yazın):</label>
+                    <div style="display:flex; width:100%; gap:5px;">
+                        <input type="text" id="targetSearchInput" placeholder="Kişi ara..." autocomplete="off" style="flex:1; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-hover); color: var(--text-main);">
+                        <button id="addTargetBtn" class="power-btn" style="padding: 8px 15px;">Ekle</button>
+                    </div>
+                    
+                    <!-- Arama Sonuçları Dropdown -->
+                    <div id="targetSearchResults" class="search-results-dropdown" style="display:none; width:100%; max-height:150px; overflow-y:auto; background:var(--bg-panel); border:1px solid var(--border); border-radius:5px;"></div>
+                    
+                    <div id="targetChipsContainer" class="chips-container" style="display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; width:100%;">
+                        <!-- Seçilen kişiler buraya eklenecek -->
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button id="saveAutoReplyBtn" class="power-btn" style="width: 100%; padding: 10px; background: var(--primary); color: white; border-color: var(--primary);">Kaydet ve Kapat</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# WhatsApp Oturum Dosyaları (Çok Önemli: Asla GitHub'a atılmamalı!)
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Node.js Paketleri
+node_modules/
+
+# Mac OS Dosyaları
+.DS_Store
+
+# Ortam Değişkenleri
+.env
